@@ -28,7 +28,7 @@ class Settings(BaseSettings):
         default=Environment.DEVELOPMENT, validation_alias="APP_ENVIRONMENT"
     )
     app_debug: bool = Field(default=False, validation_alias="APP_DEBUG")
-    app_version: str = Field(default="0.5.0", validation_alias="APP_VERSION")
+    app_version: str = Field(default="0.6.0", validation_alias="APP_VERSION")
     app_host: str = Field(default="0.0.0.0", validation_alias="APP_HOST")
     app_port: PositiveInt = Field(default=8000, validation_alias="APP_PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
@@ -97,6 +97,25 @@ class Settings(BaseSettings):
     rag_citation_excerpt_length: PositiveInt = Field(
         default=300, validation_alias="RAG_CITATION_EXCERPT_LENGTH"
     )
+    conversation_history_max_messages: PositiveInt = Field(
+        default=8, validation_alias="CONVERSATION_HISTORY_MAX_MESSAGES"
+    )
+    conversation_history_max_characters: PositiveInt = Field(
+        default=12000, validation_alias="CONVERSATION_HISTORY_MAX_CHARACTERS"
+    )
+    conversation_title_max_length: PositiveInt = Field(
+        default=120, validation_alias="CONVERSATION_TITLE_MAX_LENGTH"
+    )
+    conversation_page_size_default: PositiveInt = Field(
+        default=20, validation_alias="CONVERSATION_PAGE_SIZE_DEFAULT"
+    )
+    conversation_page_size_max: PositiveInt = Field(
+        default=100, validation_alias="CONVERSATION_PAGE_SIZE_MAX"
+    )
+    message_max_length: PositiveInt = Field(default=4000, validation_alias="MESSAGE_MAX_LENGTH")
+    stream_heartbeat_seconds: PositiveInt = Field(
+        default=15, validation_alias="STREAM_HEARTBEAT_SECONDS"
+    )
 
     @field_validator(
         "embedding_model",
@@ -134,6 +153,10 @@ class Settings(BaseSettings):
             raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
         if self.search_default_top_k > self.search_max_top_k:
             raise ValueError("SEARCH_DEFAULT_TOP_K must not exceed SEARCH_MAX_TOP_K")
+        if self.conversation_page_size_default > self.conversation_page_size_max:
+            raise ValueError(
+                "CONVERSATION_PAGE_SIZE_DEFAULT must not exceed CONVERSATION_PAGE_SIZE_MAX"
+            )
         if (
             self.llm_provider == LLMProviderName.OPENAI
             and not self.openai_api_key.get_secret_value()

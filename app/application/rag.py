@@ -1,8 +1,10 @@
 import re
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID, uuid4
 
+from app.application.history import HistoryMessage
 from app.application.llm import LLMProvider
 from app.application.prompting import PromptBuilder, PromptContext
 from app.application.retrieval import RetrievalService
@@ -38,6 +40,12 @@ class RAGAnswer:
     request_id: UUID
 
 
+@dataclass(frozen=True)
+class RAGStreamEvent:
+    event: str
+    data: dict[str, Any]
+
+
 class RAGService:
     def __init__(
         self,
@@ -62,8 +70,10 @@ class RAGService:
         document_ids: list[UUID] | None,
         top_k: int,
         score_threshold: float | None,
+        history: list[HistoryMessage] | None = None,
+        request_id: UUID | None = None,
     ) -> RAGAnswer:
-        request_id = uuid4()
+        request_id = request_id or uuid4()
         log_context = {"request_id": str(request_id), "user_id": str(user_id)}
         logger.info("rag_request_started", extra=log_context)
         try:
@@ -74,7 +84,7 @@ class RAGService:
                 "retrieval_completed",
                 extra={**log_context, "retrieved_count": len(results)},
             )
-            prompt = self.prompt_builder.build(query, results)
+            prompt = self.prompt_builder.build(query, results, history)
             logger.info(
                 "context_assembled",
                 extra={
@@ -91,6 +101,8 @@ class RAGService:
                 "context_source_count": len(prompt.contexts),
                 "context_characters": prompt.context_characters,
                 "context_truncated": prompt.truncated,
+                "history_messages": prompt.history_messages,
+                "history_characters": prompt.history_characters,
             }
             if not prompt.contexts:
                 return self._unsupported(request_id, metadata, log_context)
@@ -123,6 +135,71 @@ class RAGService:
         except Exception as exc:
             logger.error(
                 "rag_request_failed",
+                extra={**log_context, "error_type": type(exc).__name__},
+            )
+            raise
+
+    async def stream_answer(
+        self,
+        query: str,
+        user_id: UUID,
+        document_ids: list[UUID] | None,
+        top_k: int,
+        score_threshold: float | None,
+        history: list[HistoryMessage] | None = None,
+        request_id: UUID | None = None,
+    ) -> AsyncIterator[RAGStreamEvent]:
+        request_id = request_id or uuid4()
+        log_context = {"request_id": str(request_id), "user_id": str(user_id)}
+        yield RAGStreamEvent("request_started", {"request_id": str(request_id)})
+        try:
+            results = self.retrieval_service.search(
+                query, user_id, document_ids, top_k, score_threshold
+            )
+            yield RAGStreamEvent("retrieval_completed", {"result_count": len(results)})
+            prompt = self.prompt_builder.build(query, results, history)
+            metadata = {
+                "requested_top_k": top_k,
+                "score_threshold": score_threshold,
+                "retrieved_count": len(results),
+                "context_source_count": len(prompt.contexts),
+                "context_characters": prompt.context_characters,
+                "context_truncated": prompt.truncated,
+                "history_messages": prompt.history_messages,
+                "history_characters": prompt.history_characters,
+            }
+            if not prompt.contexts:
+                answer = self._unsupported(request_id, metadata, log_context)
+                yield RAGStreamEvent("citations", {"citations": []})
+                yield RAGStreamEvent("completed", {"answer": answer})
+                return
+            parts: list[str] = []
+            async for token in self.provider.stream(
+                prompt.system_prompt, prompt.user_prompt, self.temperature, self.timeout
+            ):
+                if token:
+                    parts.append(token)
+                    yield RAGStreamEvent("token", {"token": token})
+            content = "".join(parts).strip()
+            if len(content) < 2:
+                answer = self._unsupported(request_id, metadata, log_context)
+            else:
+                citations = [self._citation(context) for context in prompt.contexts]
+                answer = RAGAnswer(
+                    answer=content,
+                    supported=True,
+                    provider=self.provider.provider_name,
+                    model=self.provider.model_name,
+                    citations=citations,
+                    source_count=len(citations),
+                    retrieval_metadata=metadata,
+                    request_id=request_id,
+                )
+            yield RAGStreamEvent("citations", {"citations": answer.citations})
+            yield RAGStreamEvent("completed", {"answer": answer})
+        except Exception as exc:
+            logger.error(
+                "generation_failed",
                 extra={**log_context, "error_type": type(exc).__name__},
             )
             raise

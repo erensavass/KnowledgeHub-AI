@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -34,6 +35,14 @@ class LLMProvider(Protocol):
         temperature: float,
         timeout: float,
     ) -> LLMGeneration: ...
+
+    def stream(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        timeout: float,
+    ) -> AsyncIterator[str]: ...
 
 
 class LLMProviderFactory(Protocol):

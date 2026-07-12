@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.6.0
+
+### Added
+
+- Owner-scoped persistent conversations, messages, and message citations
+- Conversation rename, archive, unarchive, pagination, and cascade deletion APIs
+- Non-streaming persisted RAG messages with bounded, injection-resistant history
+- Server-Sent Events for grounded streaming responses and finalized citations
+- Ollama NDJSON and OpenAI SSE streaming provider adapters
+- Atomic assistant-message and citation completion with safe failed-message state
+- Conversation-scoped database idempotency keys and replay handling
+- Configurable title, message, history, pagination, and heartbeat safeguards
+- Alembic migration plus opt-in real Ollama and persistent Milvus/Ollama tests
+
 ## v0.5.0
 
 ### Added

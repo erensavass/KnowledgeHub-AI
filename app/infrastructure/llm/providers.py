@@ -1,3 +1,5 @@
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -60,6 +62,39 @@ class OllamaLLMProvider:
         except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
             raise LLMProviderError("ollama_generation_failed") from exc
 
+    async def stream(
+        self, system_prompt: str, user_prompt: str, temperature: float, timeout: float
+    ) -> AsyncIterator[str]:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model_name,
+                        "stream": True,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "options": {"temperature": temperature},
+                    },
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+                        payload = json.loads(line)
+                        if payload.get("error"):
+                            raise LLMProviderError("ollama_stream_failed")
+                        token = payload.get("message", {}).get("content", "")
+                        if token:
+                            yield str(token)
+        except httpx.TimeoutException as exc:
+            raise LLMTimeoutError("ollama_request_timed_out") from exc
+        except (httpx.HTTPError, json.JSONDecodeError, TypeError, AttributeError) as exc:
+            raise LLMProviderError("ollama_stream_failed") from exc
+
 
 class OpenAILLMProvider:
     provider_name = "openai"
@@ -96,3 +131,38 @@ class OpenAILLMProvider:
             raise LLMTimeoutError("openai_request_timed_out") from exc
         except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
             raise LLMProviderError("openai_generation_failed") from exc
+
+    async def stream(
+        self, system_prompt: str, user_prompt: str, temperature: float, timeout: float
+    ) -> AsyncIterator[str]:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json={
+                        "model": self.model_name,
+                        "temperature": temperature,
+                        "stream": True,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                    },
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        payload = json.loads(data)
+                        token = payload["choices"][0].get("delta", {}).get("content")
+                        if token:
+                            yield str(token)
+        except httpx.TimeoutException as exc:
+            raise LLMTimeoutError("openai_request_timed_out") from exc
+        except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+            raise LLMProviderError("openai_stream_failed") from exc

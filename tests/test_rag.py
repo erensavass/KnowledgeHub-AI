@@ -28,6 +28,7 @@ class FakeProvider:
         self.content = content
         self.calls: list[tuple[str, str, float, float]] = []
         self.error: Exception | None = None
+        self.stream_tokens: list[str] | None = None
 
     def generate(
         self, system_prompt: str, user_prompt: str, temperature: float, timeout: float
@@ -36,6 +37,15 @@ class FakeProvider:
         if self.error:
             raise self.error
         return LLMGeneration(self.content)
+
+    async def stream(
+        self, system_prompt: str, user_prompt: str, temperature: float, timeout: float
+    ):
+        self.calls.append((system_prompt, user_prompt, temperature, timeout))
+        if self.error:
+            raise self.error
+        for token in self.stream_tokens or [self.content]:
+            yield token
 
 
 class FakeFactory:
