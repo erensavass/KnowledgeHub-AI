@@ -55,6 +55,13 @@ class MilvusVectorStore:
                 raise VectorStoreError("milvus_connection_failed") from exc
         return self._client
 
+    def health_check(self) -> bool:
+        try:
+            self._get_client().list_collections()
+            return True
+        except Exception as exc:
+            raise VectorStoreError("milvus_health_check_failed") from exc
+
     def ensure_collection(self, dimension: int) -> None:
         client = self._get_client()
         try:

@@ -8,6 +8,7 @@ from app.application.embedding import EmbeddingError, EmbeddingService
 from app.application.retrieval import RetrievalService
 from app.application.vector_store import VectorStore, VectorStoreError
 from app.core.config import get_settings
+from app.core.metrics import metrics
 from app.dependencies import get_embedding_service, get_vector_store
 from app.infrastructure.database.models import User
 from app.infrastructure.repositories.documents import DocumentRepository
@@ -30,6 +31,7 @@ def semantic_search(
     embedding_service: EmbeddingDependency,
     vector_store: VectorStoreDependency,
 ) -> SearchResponse:
+    metrics.increment("knowledgehub_retrieval_requests_total")
     settings = get_settings()
     top_k = payload.top_k or settings.search_default_top_k
     if top_k > settings.search_max_top_k:
@@ -56,12 +58,15 @@ def semantic_search(
             )
         )
     except EmbeddingError as exc:
+        metrics.increment("knowledgehub_retrieval_failures_total")
         raise search_error(
             "query_embedding_failed", "Search is temporarily unavailable", 503
         ) from exc
     except VectorStoreError as exc:
+        metrics.increment("knowledgehub_retrieval_failures_total")
         raise search_error(
             "vector_store_unavailable", "Search is temporarily unavailable", 503
         ) from exc
     except Exception as exc:
+        metrics.increment("knowledgehub_retrieval_failures_total")
         raise search_error("search_failed", "Search is temporarily unavailable", 503) from exc

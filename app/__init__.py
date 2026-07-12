@@ -1,1 +1,1 @@
-"""Enterprise RAG Assistant application package."""
+"""KnowledgeHub AI application package."""

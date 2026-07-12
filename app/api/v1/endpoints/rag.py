@@ -16,6 +16,7 @@ from app.application.rag import RAGService
 from app.application.retrieval import RetrievalService
 from app.application.vector_store import VectorStore, VectorStoreError
 from app.core.config import get_settings
+from app.core.metrics import metrics
 from app.dependencies import (
     get_embedding_service,
     get_llm_provider_factory,
@@ -44,6 +45,7 @@ def answer_question(
     vector_store: VectorStoreDependency,
     provider_factory: ProviderFactoryDependency,
 ) -> RAGAnswerResponse:
+    metrics.increment("knowledgehub_rag_requests_total")
     settings = get_settings()
     if len(payload.query) > settings.rag_max_query_length:
         raise rag_error(
@@ -87,18 +89,23 @@ def answer_question(
             ).__dict__
         )
     except LLMConfigurationError as exc:
+        metrics.increment("knowledgehub_rag_failures_total")
         raise rag_error(
             "llm_provider_not_configured", "LLM provider is not configured", 503
         ) from exc
     except LLMTimeoutError as exc:
+        metrics.increment("knowledgehub_rag_failures_total")
         raise rag_error("llm_request_timed_out", "Answer generation timed out", 504) from exc
     except LLMProviderError as exc:
+        metrics.increment("knowledgehub_rag_failures_total")
         raise rag_error(
             "llm_provider_unavailable", "Answer generation is unavailable", 502
         ) from exc
     except (EmbeddingError, VectorStoreError) as exc:
+        metrics.increment("knowledgehub_rag_failures_total")
         raise rag_error(
             "retrieval_unavailable", "Retrieval is temporarily unavailable", 503
         ) from exc
     except Exception as exc:
+        metrics.increment("knowledgehub_rag_failures_total")
         raise rag_error("rag_failed", "Answer generation is temporarily unavailable", 503) from exc

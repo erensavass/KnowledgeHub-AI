@@ -1,11 +1,18 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.errors import add_error_handlers
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.middleware import (
+    RateLimitMiddleware,
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.dependencies import close_vector_store
 from app.infrastructure.cache.redis import close_redis
 from app.infrastructure.database.session import close_database
@@ -34,6 +41,18 @@ def create_application() -> FastAPI:
         openapi_url=None,
         lifespan=lifespan,
     )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+        expose_headers=["X-Request-ID", "Retry-After"],
+    )
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    application.add_middleware(SecurityHeadersMiddleware)
+    application.add_middleware(RateLimitMiddleware, settings=settings)
+    application.add_middleware(RequestContextMiddleware)
     application.include_router(api_router)
     add_error_handlers(application)
     return application

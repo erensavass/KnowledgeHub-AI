@@ -29,6 +29,9 @@ class FakeVectorStore:
             raise RuntimeError("dimension mismatch")
         self.dimension = dimension
 
+    def health_check(self) -> bool:
+        return True
+
     def upsert_embeddings(self, embeddings: list[VectorEmbedding]) -> None:
         if self.fail_upsert:
             from app.application.vector_store import VectorStoreError
@@ -122,6 +125,7 @@ def client(
     monkeypatch.setenv("DOCUMENT_STORAGE_PATH", str(storage_path))
     monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "1")
     monkeypatch.setenv("EMBEDDING_DIMENSION", "3")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
     get_settings.cache_clear()
 
     engine = create_engine(

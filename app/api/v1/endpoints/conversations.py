@@ -32,6 +32,7 @@ from app.application.retrieval import RetrievalService
 from app.application.vector_store import VectorStore, VectorStoreError
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
+from app.core.metrics import metrics
 from app.dependencies import get_embedding_service, get_llm_provider_factory, get_vector_store
 from app.infrastructure.database.models import (
     Conversation,
@@ -330,6 +331,7 @@ async def stream_message(
     provider_factory: ProviderFactoryDependency,
     idempotency_key: IdempotencyKey = None,
 ) -> StreamingResponse:
+    metrics.increment("knowledgehub_stream_requests_total")
     settings = get_settings()
     idempotency_key = normalize_idempotency_key(idempotency_key)
     repository = ConversationRepository(session)
@@ -436,6 +438,7 @@ async def stream_message(
             logger.info("client_disconnected", extra={"request_id": str(request_id)})
             raise
         except Exception:
+            metrics.increment("knowledgehub_stream_failures_total")
             session.rollback()
             if user_message.status != MessageStatus.COMPLETED:
                 repository.fail_message(user_message)

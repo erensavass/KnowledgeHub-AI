@@ -1,6 +1,10 @@
-# Enterprise RAG Assistant
+# KnowledgeHub AI
 
 An enterprise-ready Retrieval-Augmented Generation platform with a production React interface over the secure document, search, and conversation APIs.
+
+## v0.8.0
+
+Sprint 11 hardens the release candidate with Redis-backed per-IP and per-user rate limits, request correlation and latency logs, dependency readiness and process liveness, Prometheus-compatible counters, strict host/CORS and security headers, production configuration, query-driven database indexes, frontend crash recovery, and operations/security/deployment documentation. The fallback version is used because the required real Docker full-stack validation could not run while the Docker daemon was unavailable; this release is not represented as v1.0.0.
 
 ## v0.7.0
 
@@ -34,7 +38,7 @@ Implemented the document processing pipeline:
 
 Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL metadata tracking.
 
-## Included through Sprint 10
+## Included through Sprint 11
 
 - Existing `GET /health` and `GET /version` system endpoints
 - Registration, login, and current-user endpoints
@@ -71,6 +75,8 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
 - Consistent structured validation and authentication errors
 - Typed, environment-based settings management
 - Structured JSON application logging to standard output
+- Correlated request IDs, request latency logs, readiness/liveness, and safe metrics
+- Redis-backed configurable authentication, upload, search, RAG, and streaming limits
 - SQLAlchemy 2 database session infrastructure and Alembic migration baseline
 - Redis client infrastructure with lifecycle cleanup
 - Docker Compose stack: React static frontend, FastAPI, PostgreSQL 16, Redis 7, Milvus Standalone, Ollama, and edge Nginx
@@ -97,7 +103,7 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
    # {"status":"ok"}
 
    curl http://localhost:8000/version
-   # {"name":"Enterprise RAG Assistant","version":"0.7.0"}
+   # {"name":"KnowledgeHub AI","version":"0.8.0"}
    ```
 
 4. Register, log in, and access protected endpoints:
@@ -173,6 +179,8 @@ A missing model produces a bounded provider error for RAG requests and does not 
 
 ## Architecture
 
+The complete component diagram, consistency boundaries, and data ownership model are in [ARCHITECTURE.md](ARCHITECTURE.md). Production topology and release checks are in [DEPLOYMENT.md](DEPLOYMENT.md), security assumptions are in [SECURITY.md](SECURITY.md), backup, recovery, incident, and troubleshooting procedures are in [docs/runbook.md](docs/runbook.md), and the latest dependency review is in [docs/dependency-audit.md](docs/dependency-audit.md).
+
 The codebase follows Clean Architecture boundaries. Dependencies point inward: HTTP and infrastructure adapters may depend on application/domain layers, while domain code must not depend on FastAPI, SQLAlchemy, or Redis.
 
 ```text
@@ -197,6 +205,8 @@ TanStack Query owns server state. Local component state is limited to transient 
 ## Configuration
 
 All supported variables are documented in [`.env.example`](.env.example). `SECRET_KEY` is required and must contain at least 32 random characters; generate one with `openssl rand -hex 32`. Access tokens default to 30 minutes and can be shortened with `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`.
+
+Production deployments must start from [`.env.production.example`](.env.production.example), replace every placeholder, set exact trusted hosts and CORS origins, and keep the populated file out of version control. Rate-limit windows and route-class limits are configurable. Auth limits use a hashed client-address principal; protected route limits use a hashed authenticated user ID. Redis outages fail open by default with a structured warning to preserve service availability; set `RATE_LIMIT_FAIL_OPEN=false` where availability policy requires fail-closed behavior.
 
 Uploads default to `/data/documents` inside the API container's dedicated `document_storage` volume. Configure the location with `DOCUMENT_STORAGE_PATH` and the size ceiling with `MAX_UPLOAD_SIZE_MB` (default: 20). The original client filename is retained only as sanitized metadata; physical files always use generated UUID names. Back up the document volume together with PostgreSQL. Production deployments must inject secrets through the deployment platform rather than committing a `.env` file.
 
@@ -233,6 +243,8 @@ pytest
 ruff check .
 docker compose config --quiet
 ```
+
+System probes are `GET /live` (process only), `GET /ready` (PostgreSQL, Redis, Milvus, and Ollama), and `GET /metrics` (Prometheus text format). Metrics intentionally avoid user, document, filename, prompt, and query labels.
 
 For local frontend development, run FastAPI on port 8000 and configure the browser-accessible API URL:
 
@@ -306,7 +318,7 @@ alembic revision --autogenerate -m "describe change"
 
 ## Deliberately deferred
 
-Background workers, BM25, hybrid search, multi-tenant administration, agent workflows, WebSocket collaboration, OCR, and automatic conversation-title generation are intentionally out of scope for Sprint 10.
+Background workers, BM25, hybrid search, multi-tenant administration, agent workflows, WebSocket collaboration, OCR, and automatic conversation-title generation are intentionally out of scope for Sprint 11.
 
 ## Limitations
 

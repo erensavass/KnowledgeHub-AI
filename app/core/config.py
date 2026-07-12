@@ -23,15 +23,22 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = Field(default="Enterprise RAG Assistant", validation_alias="APP_NAME")
+    app_name: str = Field(default="KnowledgeHub AI", validation_alias="APP_NAME")
     app_environment: Environment = Field(
         default=Environment.DEVELOPMENT, validation_alias="APP_ENVIRONMENT"
     )
     app_debug: bool = Field(default=False, validation_alias="APP_DEBUG")
-    app_version: str = Field(default="0.7.0", validation_alias="APP_VERSION")
+    app_version: str = Field(default="0.8.0", validation_alias="APP_VERSION")
     app_host: str = Field(default="0.0.0.0", validation_alias="APP_HOST")
     app_port: PositiveInt = Field(default=8000, validation_alias="APP_PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    cors_allowed_origins: str = Field(
+        default="http://localhost:5173,http://localhost:8000",
+        validation_alias="CORS_ALLOWED_ORIGINS",
+    )
+    trusted_hosts: str = Field(
+        default="localhost,127.0.0.1,testserver", validation_alias="TRUSTED_HOSTS"
+    )
 
     secret_key: SecretStr = Field(validation_alias="SECRET_KEY", min_length=32)
     jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
@@ -44,6 +51,19 @@ class Settings(BaseSettings):
         validation_alias="DATABASE_URL",
     )
     redis_url: str = Field(default="redis://redis:6379/0", validation_alias="REDIS_URL")
+    rate_limit_enabled: bool = Field(default=True, validation_alias="RATE_LIMIT_ENABLED")
+    rate_limit_fail_open: bool = Field(default=True, validation_alias="RATE_LIMIT_FAIL_OPEN")
+    rate_limit_window_seconds: PositiveInt = Field(
+        default=60, validation_alias="RATE_LIMIT_WINDOW_SECONDS"
+    )
+    auth_rate_limit: PositiveInt = Field(default=10, validation_alias="AUTH_RATE_LIMIT")
+    upload_rate_limit: PositiveInt = Field(default=10, validation_alias="UPLOAD_RATE_LIMIT")
+    search_rate_limit: PositiveInt = Field(default=60, validation_alias="SEARCH_RATE_LIMIT")
+    rag_rate_limit: PositiveInt = Field(default=20, validation_alias="RAG_RATE_LIMIT")
+    stream_rate_limit: PositiveInt = Field(default=20, validation_alias="STREAM_RATE_LIMIT")
+    dependency_health_timeout_seconds: float = Field(
+        default=2.0, gt=0, le=10, validation_alias="DEPENDENCY_HEALTH_TIMEOUT_SECONDS"
+    )
     document_storage_path: Path = Field(
         default=Path("/data/documents"), validation_alias="DOCUMENT_STORAGE_PATH"
     )
@@ -116,6 +136,14 @@ class Settings(BaseSettings):
     stream_heartbeat_seconds: PositiveInt = Field(
         default=15, validation_alias="STREAM_HEARTBEAT_SECONDS"
     )
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [value.strip() for value in self.cors_allowed_origins.split(",") if value.strip()]
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        return [value.strip() for value in self.trusted_hosts.split(",") if value.strip()]
 
     @field_validator(
         "embedding_model",

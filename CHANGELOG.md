@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.8.0
+
+### Added
+
+- Redis-backed configurable rate limiting for authentication, uploads, search, RAG, and streaming, with hashed principals and `Retry-After`
+- Correlation IDs, structured request latency logging, error categories, dependency readiness, process liveness, and Prometheus-compatible counters
+- Composite indexes for owner-scoped documents/conversations and conversation-message pagination
+- Strict trusted-host and CORS configuration, API security headers, edge CSP, compression, health checks, timeouts, and API resource limits
+- Frontend top-level error boundary with safe recovery UI and regression coverage
+- Production environment template, threat model, architecture, deployment, backup/recovery, incident runbook, troubleshooting, and release checklist
+
+### Security
+
+- Rate-limit keys contain SHA-256 principal digests rather than IP addresses, user IDs, emails, or bearer tokens
+- Request IDs are length/character validated before log propagation and sensitive structured log fields are redacted
+- Readiness and client errors report bounded dependency/error categories without internal exception details
+- Production guidance now covers TLS, secret management, network isolation, token-storage risk, restore validation, and reconciliation
+
+### Validation note
+
+- The Docker daemon was unavailable during release validation, so real PostgreSQL, Redis, Milvus, Ollama, Nginx, and full-stack browser checks could not run. Per the release gate, this is `v0.8.0`, not `v1.0.0`.
+
 ## v0.7.0
 
 ### Added

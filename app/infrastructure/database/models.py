@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -54,6 +55,7 @@ class EmbeddingStatus(StrEnum):
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (Index("ix_documents_user_created", "user_id", "created_at"),)
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
@@ -150,6 +152,9 @@ class MessageStatus(StrEnum):
 
 class Conversation(Base):
     __tablename__ = "conversations"
+    __table_args__ = (
+        Index("ix_conversations_user_last_message", "user_id", "last_message_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
@@ -174,7 +179,10 @@ class Conversation(Base):
 
 class ConversationMessage(Base):
     __tablename__ = "conversation_messages"
-    __table_args__ = (UniqueConstraint("conversation_id", "idempotency_key"),)
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "idempotency_key"),
+        Index("ix_messages_conversation_created", "conversation_id", "created_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     conversation_id: Mapped[UUID] = mapped_column(

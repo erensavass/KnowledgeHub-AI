@@ -15,6 +15,7 @@ def test_health_check_returns_ok() -> None:
 
 def test_version_returns_application_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_VERSION", "0.3.0")
+    monkeypatch.setenv("APP_NAME", "KnowledgeHub AI")
     get_settings.cache_clear()
     try:
         with TestClient(create_application()) as client:
@@ -24,7 +25,7 @@ def test_version_returns_application_metadata(monkeypatch: pytest.MonkeyPatch) -
 
     assert response.status_code == 200
     body = response.json()
-    assert body["name"] == "Enterprise RAG Assistant"
+    assert body["name"] == "KnowledgeHub AI"
     assert body["version"] == "0.3.0"
 
 

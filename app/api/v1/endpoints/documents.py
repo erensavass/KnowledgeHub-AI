@@ -22,6 +22,7 @@ from app.application.extraction import ExtractionError, TextExtractor
 from app.application.vector_store import VectorEmbedding, VectorStore, VectorStoreError
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.metrics import metrics
 from app.dependencies import get_embedding_service, get_vector_store
 from app.infrastructure.database.models import (
     ChunkEmbedding,
@@ -135,7 +136,9 @@ def upload_document(
             storage_path=str(destination),
         )
         try:
-            return DocumentRepository(session).create(document)
+            result = DocumentRepository(session).create(document)
+            metrics.increment("knowledgehub_uploads_total")
+            return result
         except SQLAlchemyError:
             session.rollback()
             destination.unlink(missing_ok=True)
@@ -252,6 +255,7 @@ def process_document(
         )
         return document
     except Exception as exc:
+        metrics.increment("knowledgehub_processing_failures_total")
         session.rollback()
         error_code = exc.args[0] if isinstance(exc, ExtractionError) else "processing_failed"
         try:
@@ -390,6 +394,7 @@ def embed_document(
             status=document.embedding_status,
         )
     except Exception as exc:
+        metrics.increment("knowledgehub_embedding_failures_total")
         session.rollback()
         error_code = (
             exc.args[0]
