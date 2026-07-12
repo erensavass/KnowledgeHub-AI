@@ -13,3 +13,8 @@ tests
 docs
 logs
 data
+frontend/node_modules
+frontend/dist
+frontend/coverage
+frontend/test-results
+frontend/playwright-report

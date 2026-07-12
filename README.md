@@ -1,6 +1,10 @@
 # Enterprise RAG Assistant
 
-An enterprise-ready foundation for a Retrieval-Augmented Generation platform. Sprint 9 adds persistent owner-scoped conversations, bounded message history, request idempotency, and Server-Sent Events streaming.
+An enterprise-ready Retrieval-Augmented Generation platform with a production React interface over the secure document, search, and conversation APIs.
+
+## v0.7.0
+
+Sprint 10 adds a React 18 and TypeScript frontend with protected authentication, document lifecycle management, semantic search, persistent conversations, authenticated POST-based SSE streaming, safe citations, cancellation, responsive navigation, and light/dark presentation. The production stack serves immutable frontend assets through a dedicated Nginx container and keeps all existing API routes available.
 
 ## v0.6.0
 
@@ -30,7 +34,7 @@ Implemented the document processing pipeline:
 
 Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL metadata tracking.
 
-## Included through Sprint 9
+## Included through Sprint 10
 
 - Existing `GET /health` and `GET /version` system endpoints
 - Registration, login, and current-user endpoints
@@ -57,6 +61,10 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
 - Bounded injection-resistant conversation history
 - Idempotent message creation within each conversation
 - Ollama and OpenAI streaming through Server-Sent Events
+- React, TypeScript, Vite, Tailwind, React Router, and TanStack Query frontend
+- Responsive authenticated document, search, conversation, and chat workspaces
+- Incremental fetch-stream SSE rendering with cancellation and idempotency
+- Accessible plain-text citations, focus-managed dialogs, and dark mode
 - Vector cleanup on document reprocessing and deletion
 - PostgreSQL document metadata and UUID-based local file storage
 - Extension, MIME, content, empty-file, and configurable size validation
@@ -65,7 +73,7 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
 - Structured JSON application logging to standard output
 - SQLAlchemy 2 database session infrastructure and Alembic migration baseline
 - Redis client infrastructure with lifecycle cleanup
-- Docker Compose stack: FastAPI, PostgreSQL 16, Redis 7, Milvus Standalone, and Nginx
+- Docker Compose stack: React static frontend, FastAPI, PostgreSQL 16, Redis 7, Milvus Standalone, Ollama, and edge Nginx
 - MIT licensing, test scaffolding, and repository hygiene
 
 ## Quick start
@@ -82,14 +90,14 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
    docker compose up --build
    ```
 
-3. Verify the service through Nginx:
+3. Open the application at `http://localhost:8000`, or verify the API through Nginx:
 
    ```sh
    curl http://localhost:8000/health
    # {"status":"ok"}
 
    curl http://localhost:8000/version
-   # {"name":"Enterprise RAG Assistant","version":"0.6.0"}
+   # {"name":"Enterprise RAG Assistant","version":"0.7.0"}
    ```
 
 4. Register, log in, and access protected endpoints:
@@ -151,7 +159,7 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
      -d '{"query":"Summarize the token lifecycle."}'
    ```
 
-Nginx publishes the API and Milvus publishes its gRPC port (`MILVUS_PORT`, default `19530`) for local administration and integration tests. PostgreSQL, Redis, etcd, and MinIO remain private to the Compose network. The API container waits for dependency health checks and runs `alembic upgrade head` before starting.
+Nginx publishes the React SPA and preserves the existing root API routes. The frontend uses `/api`, which the edge proxy strips before forwarding to FastAPI; buffering is disabled for SSE. Milvus publishes its gRPC port (`MILVUS_PORT`, default `19530`) for local administration and integration tests. PostgreSQL, Redis, etcd, and MinIO remain private to the Compose network. The API container waits for dependency health checks and runs `alembic upgrade head` before starting.
 
 Milvus Standalone and local generation are resource-intensive. Allocate at least 8 GB RAM to Docker Desktop (16 GB is preferable for sustained workloads), at least 4 CPU cores, and SSD-backed storage. The first BGE-M3 request also downloads model weights and adds its own memory and disk requirements.
 
@@ -179,7 +187,12 @@ app/
 alembic/                     Database migration environment and revision history
 docker/                      API startup and Nginx deployment configuration
 tests/                       Endpoint-level regression tests
+frontend/                    React application, static Nginx image, unit and browser tests
 ```
+
+The frontend keeps JWTs in memory and `sessionStorage` to restore `/auth/me` after refresh within the same tab. This is less persistent than `localStorage`, but any script running in the origin can still access the token; production deployments must maintain a strict Content Security Policy, avoid untrusted scripts, and address XSS as a credential risk. Tokens are never placed in URLs or logs.
+
+TanStack Query owns server state. Local component state is limited to transient UI concerns such as the mobile drawer, selected documents, and the active streamed answer. SSE is parsed from authenticated `fetch` response bytes so partial frames, POST bodies, bearer headers, idempotency keys, and `AbortController` cancellation are supported.
 
 ## Configuration
 
@@ -221,6 +234,42 @@ ruff check .
 docker compose config --quiet
 ```
 
+For local frontend development, run FastAPI on port 8000 and configure the browser-accessible API URL:
+
+```sh
+cd frontend
+cp .env.example .env
+npm ci
+npm run dev
+```
+
+The Vite development server proxies the default `/api` path to FastAPI at `127.0.0.1:8000`, avoiding a separate CORS configuration. In the production image `/api` is handled by edge Nginx. Vite variables are embedded during the build and are not runtime secrets.
+
+Frontend verification and production build:
+
+```sh
+cd frontend
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run test:e2e
+```
+
+The normal Playwright journey mocks backend responses. Running against a real backend, Milvus, and Ollama is optional and requires a separately prepared full stack and model:
+
+```sh
+RUN_REAL_BACKEND_E2E=1 npm run test:e2e
+```
+
+## Screenshots
+
+Screenshots will be added after the first deployed UI review:
+
+- Desktop conversation workspace — _placeholder_
+- Mobile document workflow — _placeholder_
+- Semantic search and citation panel — _placeholder_
+
 The normal suite uses an in-memory vector-store fake. Run the opt-in real Milvus lifecycle test only after the Compose Milvus service is healthy:
 
 ```sh
@@ -257,7 +306,7 @@ alembic revision --autogenerate -m "describe change"
 
 ## Deliberately deferred
 
-Background workers, BM25, hybrid search, frontend code, multi-tenant administration, agent workflows, WebSocket collaboration, and OCR are intentionally out of scope for Sprint 9.
+Background workers, BM25, hybrid search, multi-tenant administration, agent workflows, WebSocket collaboration, OCR, and automatic conversation-title generation are intentionally out of scope for Sprint 10.
 
 ## Limitations
 
@@ -266,7 +315,7 @@ Background workers, BM25, hybrid search, frontend code, multi-tenant administrat
 - Local answer quality and resource usage depend on the selected Ollama model.
 - Citations identify retrieved source chunks; they are not formal academic references.
 - Streaming uses one-way HTTP Server-Sent Events, not WebSockets.
-- No frontend or automatic LLM-generated conversation titles are included.
+- Conversation titles remain user-authored; automatic LLM-generated titles are not included.
 - Generation runs in the request process without background workers.
 - Partial streamed output is not persisted as a completed assistant response.
 - Local streaming speed depends heavily on hardware and Ollama model size.

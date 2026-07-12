@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.7.0
+
+### Added
+
+- Production React 18, TypeScript, Vite, and Tailwind frontend
+- Tab-scoped JWT authentication with restoration, protected routing, and global 401 handling
+- Document upload progress and processing, embedding, status, and deletion workflows
+- Conversation management and responsive grounded-chat workspace
+- Authenticated POST streaming with incremental SSE parsing, cancellation, and idempotency
+- Safe ordered citation panels and embedded-document selection
+- Semantic search workspace without answer generation
+- Accessible responsive light/dark interface and focus-managed destructive dialogs
+- Vitest/Testing Library coverage and mocked Playwright browser journey
+- Multi-stage frontend image, SPA Nginx serving, edge API/SSE routing, and frontend CI
+
 ## v0.6.0
 
 ### Added

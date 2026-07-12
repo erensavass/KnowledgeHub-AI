@@ -28,7 +28,7 @@ class Settings(BaseSettings):
         default=Environment.DEVELOPMENT, validation_alias="APP_ENVIRONMENT"
     )
     app_debug: bool = Field(default=False, validation_alias="APP_DEBUG")
-    app_version: str = Field(default="0.6.0", validation_alias="APP_VERSION")
+    app_version: str = Field(default="0.7.0", validation_alias="APP_VERSION")
     app_host: str = Field(default="0.0.0.0", validation_alias="APP_HOST")
     app_port: PositiveInt = Field(default=8000, validation_alias="APP_PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")

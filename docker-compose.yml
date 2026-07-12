@@ -7,7 +7,7 @@ services:
       APP_NAME: ${APP_NAME:-Enterprise RAG Assistant}
       APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
       APP_DEBUG: ${APP_DEBUG:-false}
-      APP_VERSION: ${APP_VERSION:-0.6.0}
+      APP_VERSION: ${APP_VERSION:-0.7.0}
       APP_HOST: ${APP_HOST:-0.0.0.0}
       APP_PORT: ${APP_PORT:-8000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -173,12 +173,30 @@ services:
     restart: unless-stopped
     networks: [backend]
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks: [backend]
+
   nginx:
     build:
       context: .
       dockerfile: docker/nginx/Dockerfile
     depends_on:
-      - api
+      api:
+        condition: service_started
+      frontend:
+        condition: service_healthy
     ports:
       - "${HTTP_PORT:-8000}:80"
     restart: unless-stopped

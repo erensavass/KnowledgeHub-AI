@@ -25,6 +25,14 @@ venv/
 build/
 dist/
 *.egg-info/
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # Application-generated data
 logs/
