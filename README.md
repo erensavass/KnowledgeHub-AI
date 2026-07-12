@@ -1,6 +1,10 @@
 # Enterprise RAG Assistant
 
-An enterprise-ready foundation for a Retrieval-Augmented Generation platform. Sprint 7 adds authenticated semantic retrieval over each user's embedded document chunks.
+An enterprise-ready foundation for a Retrieval-Augmented Generation platform. Sprint 8 adds grounded answer generation with application-controlled citations over authenticated semantic retrieval.
+
+## v0.5.0
+
+`POST /rag/answer` retrieves only the authenticated user's embedded chunks, places bounded untrusted context into an injection-resistant prompt, and generates an answer through local Ollama by default. Citations are assembled by the application from the exact chunks included in the prompt. OpenAI is an optional provider and is not configured or contacted unless selected.
 
 ## v0.4.0
 
@@ -22,7 +26,7 @@ Implemented the document processing pipeline:
 
 Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL metadata tracking.
 
-## Included through Sprint 7
+## Included through Sprint 8
 
 - Existing `GET /health` and `GET /version` system endpoints
 - Registration, login, and current-user endpoints
@@ -42,6 +46,9 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
 - PostgreSQL/Milvus compensation and reconciliation support
 - Authenticated, user-scoped semantic retrieval with optional document filtering
 - Ordered PostgreSQL hydration of retrieved chunk content and source metadata
+- Grounded RAG answer generation using Ollama or optional OpenAI
+- Application-controlled citations with bounded source excerpts
+- Safe unsupported answers and document prompt-injection defenses
 - Vector cleanup on document reprocessing and deletion
 - PostgreSQL document metadata and UUID-based local file storage
 - Extension, MIME, content, empty-file, and configurable size validation
@@ -74,7 +81,7 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
    # {"status":"ok"}
 
    curl http://localhost:8000/version
-   # {"name":"Enterprise RAG Assistant","version":"0.4.0"}
+   # {"name":"Enterprise RAG Assistant","version":"0.5.0"}
    ```
 
 4. Register, log in, and access protected endpoints:
@@ -113,11 +120,24 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
      -H 'Authorization: Bearer <access_token>' \
      -H 'Content-Type: application/json' \
      -d '{"query":"How does authentication work?","top_k":5,"score_threshold":0.0}'
+
+   curl -X POST http://localhost:8000/rag/answer \
+     -H 'Authorization: Bearer <access_token>' \
+     -H 'Content-Type: application/json' \
+     -d '{"query":"How does authentication work?","top_k":5,"score_threshold":0.0}'
    ```
 
 Nginx publishes the API and Milvus publishes its gRPC port (`MILVUS_PORT`, default `19530`) for local administration and integration tests. PostgreSQL, Redis, etcd, and MinIO remain private to the Compose network. The API container waits for dependency health checks and runs `alembic upgrade head` before starting.
 
-Milvus Standalone is resource-intensive. Allocate at least 8 GB RAM to Docker Desktop (16 GB is preferable for sustained workloads), at least 4 CPU cores, and SSD-backed storage. The first BGE-M3 request also downloads model weights and adds its own memory and disk requirements.
+Milvus Standalone and local generation are resource-intensive. Allocate at least 8 GB RAM to Docker Desktop (16 GB is preferable for sustained workloads), at least 4 CPU cores, and SSD-backed storage. The first BGE-M3 request also downloads model weights and adds its own memory and disk requirements.
+
+Ollama starts without assuming a model is already present. Pull the configured model once after the service is healthy; model data is retained in the `ollama_data` volume:
+
+```sh
+docker compose exec ollama ollama pull llama3.1:8b
+```
+
+A missing model produces a bounded provider error for RAG requests and does not make the Ollama health check wait forever.
 
 ## Architecture
 
@@ -155,6 +175,10 @@ python -m app.cli.reconcile <document_uuid>
 
 Semantic search defaults to five results, is capped at 20, and applies a minimum score of `0.0`. Configure these values with `SEARCH_DEFAULT_TOP_K`, `SEARCH_MAX_TOP_K`, and `SEARCH_SCORE_THRESHOLD`. Only chunks with current PostgreSQL embedding metadata from documents marked embedded are returned. Supplying an unknown or another user's document ID returns HTTP 404.
 
+Grounded generation defaults to `LLM_PROVIDER=ollama`, model `llama3.1:8b`, temperature `0.1`, at most eight context chunks, and a 60-second provider timeout. Context is capped at 24,000 characters, queries at 2,000 characters, and citation excerpts at 300 characters. These limits are configurable through the `LLM_*` and `RAG_*` variables in `.env.example`.
+
+To use OpenAI for a request, configure `OPENAI_API_KEY` and optionally `OPENAI_MODEL`, then either set `LLM_PROVIDER=openai` or send `"provider":"openai"`. The key is not required for the default Ollama provider and is never included in logs or responses.
+
 PDF extraction reads each page's embedded text layer. Scanned or image-only PDFs require OCR, which is intentionally not included in Sprint 4. Complex PDF layouts, tables, headers, and multi-column reading order are limited by the source PDF and parser. DOCX extraction processes body paragraphs in order; text boxes, drawings, headers, footers, and tracked layout semantics are not extracted.
 
 ## Development
@@ -173,6 +197,19 @@ The normal suite uses an in-memory vector-store fake. Run the opt-in real Milvus
 RUN_MILVUS_INTEGRATION=1 MILVUS_URI=http://localhost:19530 pytest -m integration
 ```
 
+After pulling the Ollama model, run the two opt-in RAG integration paths with host-accessible service URLs:
+
+```sh
+RUN_OLLAMA_INTEGRATION=1 \
+OLLAMA_BASE_URL=http://localhost:11434 \
+pytest tests/test_rag_integration.py::test_real_ollama_generation
+
+RUN_RAG_E2E_INTEGRATION=1 \
+MILVUS_URI=http://localhost:19530 \
+OLLAMA_BASE_URL=http://localhost:11434 \
+pytest tests/test_rag_integration.py::test_real_milvus_and_ollama_rag_pipeline
+```
+
 To create a future database revision:
 
 ```sh
@@ -181,4 +218,12 @@ alembic revision --autogenerate -m "describe change"
 
 ## Deliberately deferred
 
-Background embedding workers, BM25, hybrid search, RAG answer generation, chat, conversation memory, frontend code, and LLM providers are intentionally out of scope for Sprint 7.
+Background workers, BM25, hybrid search, conversation memory, persistent chat history, frontend code, multi-tenant administration, and agent workflows are intentionally out of scope for Sprint 8.
+
+## Limitations
+
+- Answers are only as reliable as the retrieved context and the selected generation model.
+- Scanned or image-only PDFs still require OCR before their content can be retrieved.
+- Local answer quality and resource usage depend on the selected Ollama model.
+- Citations identify retrieved source chunks; they are not formal academic references.
+- Requests are independent and no conversation memory is stored.

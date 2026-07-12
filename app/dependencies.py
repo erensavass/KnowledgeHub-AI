@@ -6,10 +6,12 @@ from redis import Redis
 from sqlalchemy.orm import Session
 
 from app.application.embedding import EmbeddingService
+from app.application.llm import LLMProviderFactory
 from app.application.vector_store import VectorStore
 from app.core.config import get_settings
 from app.infrastructure.cache.redis import get_redis_client
 from app.infrastructure.database.session import get_db_session
+from app.infrastructure.llm import DefaultLLMProviderFactory
 from app.infrastructure.vector.milvus import MilvusVectorStore
 
 
@@ -43,6 +45,10 @@ def get_vector_store() -> VectorStore:
         hnsw_m=settings.milvus_hnsw_m,
         hnsw_ef_construction=settings.milvus_hnsw_ef_construction,
     )
+
+
+def get_llm_provider_factory() -> LLMProviderFactory:
+    return DefaultLLMProviderFactory(get_settings())
 
 
 def close_vector_store() -> None:

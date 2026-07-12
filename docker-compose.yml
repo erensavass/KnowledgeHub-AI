@@ -7,7 +7,7 @@ services:
       APP_NAME: ${APP_NAME:-Enterprise RAG Assistant}
       APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
       APP_DEBUG: ${APP_DEBUG:-false}
-      APP_VERSION: ${APP_VERSION:-0.4.0}
+      APP_VERSION: ${APP_VERSION:-0.5.0}
       APP_HOST: ${APP_HOST:-0.0.0.0}
       APP_PORT: ${APP_PORT:-8000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -34,6 +34,17 @@ services:
       SEARCH_DEFAULT_TOP_K: ${SEARCH_DEFAULT_TOP_K:-5}
       SEARCH_MAX_TOP_K: ${SEARCH_MAX_TOP_K:-20}
       SEARCH_SCORE_THRESHOLD: ${SEARCH_SCORE_THRESHOLD:-0.0}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.1}
+      LLM_MAX_CONTEXT_CHUNKS: ${LLM_MAX_CONTEXT_CHUNKS:-8}
+      LLM_REQUEST_TIMEOUT_SECONDS: ${LLM_REQUEST_TIMEOUT_SECONDS:-60}
+      RAG_MAX_QUERY_LENGTH: ${RAG_MAX_QUERY_LENGTH:-2000}
+      RAG_MAX_CONTEXT_CHARACTERS: ${RAG_MAX_CONTEXT_CHARACTERS:-24000}
+      RAG_CITATION_EXCERPT_LENGTH: ${RAG_CITATION_EXCERPT_LENGTH:-300}
     volumes:
       - document_storage:/data/documents
     depends_on:
@@ -42,6 +53,8 @@ services:
       redis:
         condition: service_healthy
       milvus:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     restart: unless-stopped
     networks: [backend]
@@ -138,6 +151,21 @@ services:
     restart: unless-stopped
     networks: [backend]
 
+  ollama:
+    image: ollama/ollama:0.6.5
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    networks: [backend]
+
   nginx:
     build:
       context: .
@@ -156,6 +184,7 @@ volumes:
   milvus_etcd_data:
   milvus_minio_data:
   milvus_data:
+  ollama_data:
 
 networks:
   backend:

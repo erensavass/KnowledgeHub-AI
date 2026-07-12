@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.0
+
+### Added
+
+- Grounded answer generation through authenticated `POST /rag/answer`
+- Isolated Ollama and optional OpenAI provider adapters with safe error translation
+- Injection-resistant prompt construction with bounded untrusted document context
+- Application-assembled citations and source metadata for prompt-selected chunks
+- Safe unsupported answers when retrieval or model output cannot support an answer
+- Query, context, citation, temperature, and request-timeout safeguards
+- Persistent Ollama Compose service and documented model setup
+- Opt-in real Ollama and Milvus-plus-Ollama integration tests
+
 ## v0.4.0
 
 ### Added

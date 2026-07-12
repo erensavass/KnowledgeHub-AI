@@ -13,6 +13,11 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
+class LLMProviderName(StrEnum):
+    OLLAMA = "ollama"
+    OPENAI = "openai"
+
+
 class Settings(BaseSettings):
     """Typed configuration sourced from environment variables or a local .env file."""
 
@@ -23,7 +28,7 @@ class Settings(BaseSettings):
         default=Environment.DEVELOPMENT, validation_alias="APP_ENVIRONMENT"
     )
     app_debug: bool = Field(default=False, validation_alias="APP_DEBUG")
-    app_version: str = Field(default="0.4.0", validation_alias="APP_VERSION")
+    app_version: str = Field(default="0.5.0", validation_alias="APP_VERSION")
     app_host: str = Field(default="0.0.0.0", validation_alias="APP_HOST")
     app_port: PositiveInt = Field(default=8000, validation_alias="APP_PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
@@ -67,6 +72,31 @@ class Settings(BaseSettings):
     search_score_threshold: float = Field(
         default=0.0, validation_alias="SEARCH_SCORE_THRESHOLD"
     )
+    llm_provider: LLMProviderName = Field(
+        default=LLMProviderName.OLLAMA, validation_alias="LLM_PROVIDER"
+    )
+    ollama_base_url: str = Field(
+        default="http://ollama:11434", validation_alias="OLLAMA_BASE_URL"
+    )
+    ollama_model: str = Field(default="llama3.1:8b", validation_alias="OLLAMA_MODEL")
+    openai_api_key: SecretStr = Field(default="", validation_alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
+    llm_temperature: float = Field(default=0.1, ge=0.0, le=2.0, validation_alias="LLM_TEMPERATURE")
+    llm_max_context_chunks: PositiveInt = Field(
+        default=8, validation_alias="LLM_MAX_CONTEXT_CHUNKS"
+    )
+    llm_request_timeout_seconds: PositiveInt = Field(
+        default=60, validation_alias="LLM_REQUEST_TIMEOUT_SECONDS"
+    )
+    rag_max_query_length: PositiveInt = Field(
+        default=2000, validation_alias="RAG_MAX_QUERY_LENGTH"
+    )
+    rag_max_context_characters: PositiveInt = Field(
+        default=24000, validation_alias="RAG_MAX_CONTEXT_CHARACTERS"
+    )
+    rag_citation_excerpt_length: PositiveInt = Field(
+        default=300, validation_alias="RAG_CITATION_EXCERPT_LENGTH"
+    )
 
     @field_validator(
         "embedding_model",
@@ -80,6 +110,14 @@ class Settings(BaseSettings):
         value = value.strip()
         if not value:
             raise ValueError("embedding configuration values must not be blank")
+        return value
+
+    @field_validator("ollama_base_url", "ollama_model", "openai_model")
+    @classmethod
+    def validate_llm_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("LLM configuration values must not be blank")
         return value
 
     @field_validator("milvus_metric_type")
@@ -96,6 +134,11 @@ class Settings(BaseSettings):
             raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
         if self.search_default_top_k > self.search_max_top_k:
             raise ValueError("SEARCH_DEFAULT_TOP_K must not exceed SEARCH_MAX_TOP_K")
+        if (
+            self.llm_provider == LLMProviderName.OPENAI
+            and not self.openai_api_key.get_secret_value()
+        ):
+            raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
         return self
 
 
