@@ -7,7 +7,7 @@ services:
       APP_NAME: ${APP_NAME:-Enterprise RAG Assistant}
       APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
       APP_DEBUG: ${APP_DEBUG:-false}
-      APP_VERSION: ${APP_VERSION:-0.3.0}
+      APP_VERSION: ${APP_VERSION:-0.4.0}
       APP_HOST: ${APP_HOST:-0.0.0.0}
       APP_PORT: ${APP_PORT:-8000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -31,6 +31,9 @@ services:
       MILVUS_INDEX_TYPE: ${MILVUS_INDEX_TYPE:-HNSW}
       MILVUS_HNSW_M: ${MILVUS_HNSW_M:-16}
       MILVUS_HNSW_EF_CONSTRUCTION: ${MILVUS_HNSW_EF_CONSTRUCTION:-200}
+      SEARCH_DEFAULT_TOP_K: ${SEARCH_DEFAULT_TOP_K:-5}
+      SEARCH_MAX_TOP_K: ${SEARCH_MAX_TOP_K:-20}
+      SEARCH_SCORE_THRESHOLD: ${SEARCH_SCORE_THRESHOLD:-0.0}
     volumes:
       - document_storage:/data/documents
     depends_on:

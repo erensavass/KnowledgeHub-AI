@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         default=Environment.DEVELOPMENT, validation_alias="APP_ENVIRONMENT"
     )
     app_debug: bool = Field(default=False, validation_alias="APP_DEBUG")
-    app_version: str = Field(default="0.3.0", validation_alias="APP_VERSION")
+    app_version: str = Field(default="0.4.0", validation_alias="APP_VERSION")
     app_host: str = Field(default="0.0.0.0", validation_alias="APP_HOST")
     app_port: PositiveInt = Field(default=8000, validation_alias="APP_PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     milvus_hnsw_ef_construction: PositiveInt = Field(
         default=200, validation_alias="MILVUS_HNSW_EF_CONSTRUCTION"
     )
+    search_default_top_k: PositiveInt = Field(default=5, validation_alias="SEARCH_DEFAULT_TOP_K")
+    search_max_top_k: PositiveInt = Field(default=20, validation_alias="SEARCH_MAX_TOP_K")
+    search_score_threshold: float = Field(
+        default=0.0, validation_alias="SEARCH_SCORE_THRESHOLD"
+    )
 
     @field_validator(
         "embedding_model",
@@ -89,6 +94,8 @@ class Settings(BaseSettings):
     def validate_chunk_settings(self) -> "Settings":
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
+        if self.search_default_top_k > self.search_max_top_k:
+            raise ValueError("SEARCH_DEFAULT_TOP_K must not exceed SEARCH_MAX_TOP_K")
         return self
 
 

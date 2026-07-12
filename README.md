@@ -1,6 +1,10 @@
 # Enterprise RAG Assistant
 
-An enterprise-ready foundation for a Retrieval-Augmented Generation platform. Sprint 6 adds reliable Milvus vector persistence, compensation, and reconciliation on top of secure document processing.
+An enterprise-ready foundation for a Retrieval-Augmented Generation platform. Sprint 7 adds authenticated semantic retrieval over each user's embedded document chunks.
+
+## v0.4.0
+
+Semantic retrieval is available through `POST /search`, with mandatory user scoping, optional document filters, bounded result counts, score thresholds, PostgreSQL source hydration, and safe handling of stale vector references. This release does not call an LLM or generate answers.
 
 ## v0.3.0
 
@@ -18,7 +22,7 @@ Implemented the document processing pipeline:
 
 Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL metadata tracking.
 
-## Included through Sprint 6
+## Included through Sprint 7
 
 - Existing `GET /health` and `GET /version` system endpoints
 - Registration, login, and current-user endpoints
@@ -36,6 +40,8 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
 - Milvus Standalone vector persistence with stable chunk UUID primary keys
 - Idempotent schema/index validation using COSINE and HNSW defaults
 - PostgreSQL/Milvus compensation and reconciliation support
+- Authenticated, user-scoped semantic retrieval with optional document filtering
+- Ordered PostgreSQL hydration of retrieved chunk content and source metadata
 - Vector cleanup on document reprocessing and deletion
 - PostgreSQL document metadata and UUID-based local file storage
 - Extension, MIME, content, empty-file, and configurable size validation
@@ -68,7 +74,7 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
    # {"status":"ok"}
 
    curl http://localhost:8000/version
-   # {"name":"Enterprise RAG Assistant","version":"0.3.0"}
+   # {"name":"Enterprise RAG Assistant","version":"0.4.0"}
    ```
 
 4. Register, log in, and access protected endpoints:
@@ -102,6 +108,11 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
 
    curl http://localhost:8000/documents/<document_id>/embedding-status \
      -H 'Authorization: Bearer <access_token>'
+
+   curl -X POST http://localhost:8000/search \
+     -H 'Authorization: Bearer <access_token>' \
+     -H 'Content-Type: application/json' \
+     -d '{"query":"How does authentication work?","top_k":5,"score_threshold":0.0}'
    ```
 
 Nginx publishes the API and Milvus publishes its gRPC port (`MILVUS_PORT`, default `19530`) for local administration and integration tests. PostgreSQL, Redis, etcd, and MinIO remain private to the Compose network. The API container waits for dependency health checks and runs `alembic upgrade head` before starting.
@@ -142,6 +153,8 @@ Milvus defaults to `MILVUS_URI=http://milvus:19530`, collection `knowledgehub_ch
 python -m app.cli.reconcile <document_uuid>
 ```
 
+Semantic search defaults to five results, is capped at 20, and applies a minimum score of `0.0`. Configure these values with `SEARCH_DEFAULT_TOP_K`, `SEARCH_MAX_TOP_K`, and `SEARCH_SCORE_THRESHOLD`. Only chunks with current PostgreSQL embedding metadata from documents marked embedded are returned. Supplying an unknown or another user's document ID returns HTTP 404.
+
 PDF extraction reads each page's embedded text layer. Scanned or image-only PDFs require OCR, which is intentionally not included in Sprint 4. Complex PDF layouts, tables, headers, and multi-column reading order are limited by the source PDF and parser. DOCX extraction processes body paragraphs in order; text boxes, drawings, headers, footers, and tracked layout semantics are not extracted.
 
 ## Development
@@ -168,4 +181,4 @@ alembic revision --autogenerate -m "describe change"
 
 ## Deliberately deferred
 
-Background embedding workers, semantic/vector search, BM25, hybrid search, retrieval, RAG, chat, frontend code, and LLM providers are intentionally out of scope for Sprint 6.
+Background embedding workers, BM25, hybrid search, RAG answer generation, chat, conversation memory, frontend code, and LLM providers are intentionally out of scope for Sprint 7.

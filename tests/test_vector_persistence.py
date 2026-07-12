@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.application.reconciliation import EmbeddingReconciliationService
-from app.application.vector_store import VectorMetadata
+from app.application.vector_store import VectorEmbedding, VectorMetadata
 from app.core.config import get_settings
 from app.dependencies import get_embedding_service
 from app.infrastructure.database.models import ChunkEmbedding, Document, EmbeddingStatus
@@ -323,6 +323,27 @@ def test_collection_validation_rejects_wrong_dimension() -> None:
         store.ensure_collection(4)
 
 
+class SearchClient:
+    def search(self, **kwargs: object) -> list[list[dict]]:
+        assert kwargs["filter"] == (
+            'user_id == "user-id" and document_id in ["doc-one", "doc-two"]'
+        )
+        return [
+            [
+                {"id": "chunk-one", "distance": 0.8, "entity": {"chunk_id": "chunk-one"}},
+                {"id": "chunk-two", "distance": 0.2, "entity": {"chunk_id": "chunk-two"}},
+            ]
+        ]
+
+
+def test_milvus_search_scopes_filters_and_thresholds() -> None:
+    store = milvus_store(SearchClient())  # type: ignore[arg-type]
+
+    results = store.search([1.0, 0.0, 0.0], "user-id", ["doc-one", "doc-two"], 5, 0.5)
+
+    assert [(item.chunk_id, item.score) for item in results] == [("chunk-one", 0.8)]
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     os.getenv("RUN_MILVUS_INTEGRATION") != "1", reason="real Milvus integration is opt-in"
@@ -342,6 +363,23 @@ def test_real_milvus_collection_lifecycle() -> None:
     try:
         store.ensure_collection(3)
         store.ensure_collection(3)
+        user_id = str(uuid4())
+        document_id = str(uuid4())
+        chunk_id = str(uuid4())
+        store.upsert_embeddings(
+            [
+                VectorEmbedding(
+                    chunk_id=chunk_id,
+                    document_id=document_id,
+                    user_id=user_id,
+                    embedding=[1.0, 0.0, 0.0],
+                    embedding_model="integration/model",
+                    created_at=1,
+                )
+            ]
+        )
+        results = store.search([1.0, 0.0, 0.0], user_id, [document_id], 1, 0.0)
+        assert results[0].chunk_id == chunk_id
     finally:
         if store._client is not None and store._client.has_collection(collection_name=collection):
             store._client.drop_collection(collection_name=collection)

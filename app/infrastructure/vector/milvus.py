@@ -3,6 +3,7 @@ from typing import Any
 from app.application.vector_store import (
     VectorEmbedding,
     VectorMetadata,
+    VectorSearchResult,
     VectorStoreError,
 )
 from app.core.logging import get_logger
@@ -219,6 +220,43 @@ class MilvusVectorStore:
             ]
         except Exception as exc:
             raise VectorStoreError("milvus_query_failed") from exc
+
+    def search(
+        self,
+        query_vector: list[float],
+        user_id: str,
+        document_ids: list[str] | None = None,
+        top_k: int = 5,
+        score_threshold: float | None = None,
+    ) -> list[VectorSearchResult]:
+        filters = [f'user_id == "{user_id}"']
+        if document_ids:
+            values = ", ".join(f'"{document_id}"' for document_id in document_ids)
+            filters.append(f"document_id in [{values}]")
+        try:
+            response = self._get_client().search(
+                collection_name=self.collection,
+                data=[query_vector],
+                anns_field="embedding",
+                filter=" and ".join(filters),
+                limit=top_k,
+                output_fields=["chunk_id"],
+                search_params={"metric_type": self.metric_type, "params": {"ef": max(64, top_k)}},
+            )
+            hits = response[0] if response else []
+            results = []
+            for hit in hits:
+                entity = hit.get("entity", {})
+                chunk_id = entity.get("chunk_id", hit.get("id"))
+                raw_score = float(hit.get("distance", hit.get("score", 0.0)))
+                score = 1.0 / (1.0 + raw_score) if self.metric_type.upper() == "L2" else raw_score
+                if chunk_id is not None and (
+                    score_threshold is None or score >= score_threshold
+                ):
+                    results.append(VectorSearchResult(chunk_id=str(chunk_id), score=score))
+            return results
+        except Exception as exc:
+            raise VectorStoreError("milvus_search_failed") from exc
 
     def close(self) -> None:
         if self._client is not None:

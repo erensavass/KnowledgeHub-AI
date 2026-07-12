@@ -3,7 +3,13 @@ from uuid import UUID
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.infrastructure.database.models import ChunkEmbedding, Document, DocumentChunk
+from app.application.retrieval import RetrievalSource
+from app.infrastructure.database.models import (
+    ChunkEmbedding,
+    Document,
+    DocumentChunk,
+    EmbeddingStatus,
+)
 
 
 class DocumentRepository:
@@ -79,3 +85,37 @@ class DocumentRepository:
                 delete(ChunkEmbedding).where(ChunkEmbedding.chunk_id.in_(chunk_ids))
             )
         self.session.add_all(metadata)
+
+    def owned_document_ids(self, document_ids: list[UUID], user_id: UUID) -> set[UUID]:
+        statement = select(Document.id).where(
+            Document.id.in_(document_ids), Document.user_id == user_id
+        )
+        return set(self.session.scalars(statement))
+
+    def hydrate_search_chunks(
+        self, chunk_ids: list[UUID], user_id: UUID
+    ) -> dict[UUID, RetrievalSource]:
+        if not chunk_ids:
+            return {}
+        statement = (
+            select(DocumentChunk, Document)
+            .join(Document, Document.id == DocumentChunk.document_id)
+            .join(ChunkEmbedding, ChunkEmbedding.chunk_id == DocumentChunk.id)
+            .where(
+                DocumentChunk.id.in_(chunk_ids),
+                Document.user_id == user_id,
+                Document.embedding_status == EmbeddingStatus.EMBEDDED,
+            )
+        )
+        return {
+            chunk.id: RetrievalSource(
+                chunk_id=chunk.id,
+                document_id=document.id,
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                page_number=chunk.page_number,
+                original_filename=document.original_filename,
+                metadata=chunk.metadata_json,
+            )
+            for chunk, document in self.session.execute(statement)
+        }

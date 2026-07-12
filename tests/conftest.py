@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.application.vector_store import VectorEmbedding, VectorMetadata
+from app.application.vector_store import VectorEmbedding, VectorMetadata, VectorSearchResult
 from app.core.config import get_settings
 from app.dependencies import get_database_session, get_vector_store
 from app.infrastructure.database.base import Base
@@ -20,6 +20,9 @@ class FakeVectorStore:
         self.vectors: dict[str, VectorEmbedding] = {}
         self.fail_upsert = False
         self.fail_delete = False
+        self.fail_search = False
+        self.search_results: list[VectorSearchResult] | None = None
+        self.last_search: dict[str, object] | None = None
 
     def ensure_collection(self, dimension: int) -> None:
         if self.dimension is not None and self.dimension != dimension:
@@ -67,6 +70,40 @@ class FakeVectorStore:
             for item in self.vectors.values()
             if item.document_id == document_id
         ]
+
+    def search(
+        self,
+        query_vector: list[float],
+        user_id: str,
+        document_ids: list[str] | None = None,
+        top_k: int = 5,
+        score_threshold: float | None = None,
+    ) -> list[VectorSearchResult]:
+        from app.application.vector_store import VectorStoreError
+
+        if self.fail_search:
+            raise VectorStoreError("milvus_search_failed")
+        self.last_search = {
+            "query_vector": query_vector,
+            "user_id": user_id,
+            "document_ids": document_ids,
+            "top_k": top_k,
+            "score_threshold": score_threshold,
+        }
+        if self.search_results is not None:
+            candidates = self.search_results
+        else:
+            candidates = [
+                VectorSearchResult(item.chunk_id, sum(query_vector))
+                for item in self.vectors.values()
+                if item.user_id == user_id
+                and (not document_ids or item.document_id in document_ids)
+            ]
+        return [
+            hit
+            for hit in candidates
+            if score_threshold is None or hit.score >= score_threshold
+        ][:top_k]
 
     def close(self) -> None:
         pass
