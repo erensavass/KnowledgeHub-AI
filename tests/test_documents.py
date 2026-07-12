@@ -1,18 +1,11 @@
-from collections.abc import Generator
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.core.config import get_settings
-from app.dependencies import get_database_session
-from app.infrastructure.database.base import Base
-from app.main import create_application
 
 PDF_CONTENT = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF"
 TXT_CONTENT = b"KnowledgeHub document text\n"
@@ -24,34 +17,6 @@ def make_docx() -> bytes:
         archive.writestr("[Content_Types].xml", "<Types></Types>")
         archive.writestr("word/document.xml", "<document></document>")
     return output.getvalue()
-
-
-@pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
-    storage_path = tmp_path / "document-storage"
-    monkeypatch.setenv("DOCUMENT_STORAGE_PATH", str(storage_path))
-    monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "1")
-    get_settings.cache_clear()
-
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-
-    def override_session() -> Generator[Session, None, None]:
-        with session_factory() as session:
-            yield session
-
-    application = create_application()
-    application.dependency_overrides[get_database_session] = override_session
-    with TestClient(application) as test_client:
-        yield test_client
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-    get_settings.cache_clear()
 
 
 def create_user(client: TestClient, email: str) -> str:

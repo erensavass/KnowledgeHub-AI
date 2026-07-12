@@ -2,7 +2,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, PositiveInt, SecretStr
+from pydantic import Field, NonNegativeInt, PositiveInt, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         default=Environment.DEVELOPMENT, validation_alias="APP_ENVIRONMENT"
     )
     app_debug: bool = Field(default=False, validation_alias="APP_DEBUG")
-    app_version: str = Field(default="0.1.0", validation_alias="APP_VERSION")
+    app_version: str = Field(default="0.3.0", validation_alias="APP_VERSION")
     app_host: str = Field(default="0.0.0.0", validation_alias="APP_HOST")
     app_port: PositiveInt = Field(default=8000, validation_alias="APP_PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
@@ -43,6 +43,53 @@ class Settings(BaseSettings):
         default=Path("/data/documents"), validation_alias="DOCUMENT_STORAGE_PATH"
     )
     max_upload_size_mb: PositiveInt = Field(default=20, validation_alias="MAX_UPLOAD_SIZE_MB")
+    chunk_size: PositiveInt = Field(default=1000, validation_alias="CHUNK_SIZE")
+    chunk_overlap: NonNegativeInt = Field(default=150, validation_alias="CHUNK_OVERLAP")
+    embedding_model: str = Field(default="BAAI/bge-m3", validation_alias="EMBEDDING_MODEL")
+    embedding_device: str = Field(default="cpu", validation_alias="EMBEDDING_DEVICE")
+    embedding_batch_size: PositiveInt = Field(
+        default=32, validation_alias="EMBEDDING_BATCH_SIZE"
+    )
+    embedding_dimension: PositiveInt = Field(default=1024, validation_alias="EMBEDDING_DIMENSION")
+    milvus_uri: str = Field(default="http://milvus:19530", validation_alias="MILVUS_URI")
+    milvus_token: str = Field(default="", validation_alias="MILVUS_TOKEN")
+    milvus_collection: str = Field(
+        default="knowledgehub_chunks", validation_alias="MILVUS_COLLECTION"
+    )
+    milvus_metric_type: str = Field(default="COSINE", validation_alias="MILVUS_METRIC_TYPE")
+    milvus_index_type: str = Field(default="HNSW", validation_alias="MILVUS_INDEX_TYPE")
+    milvus_hnsw_m: PositiveInt = Field(default=16, validation_alias="MILVUS_HNSW_M")
+    milvus_hnsw_ef_construction: PositiveInt = Field(
+        default=200, validation_alias="MILVUS_HNSW_EF_CONSTRUCTION"
+    )
+
+    @field_validator(
+        "embedding_model",
+        "embedding_device",
+        "milvus_uri",
+        "milvus_collection",
+        "milvus_index_type",
+    )
+    @classmethod
+    def validate_embedding_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("embedding configuration values must not be blank")
+        return value
+
+    @field_validator("milvus_metric_type")
+    @classmethod
+    def validate_metric(cls, value: str) -> str:
+        value = value.strip().upper()
+        if value not in {"COSINE", "IP", "L2"}:
+            raise ValueError("MILVUS_METRIC_TYPE must be COSINE, IP, or L2")
+        return value
+
+    @model_validator(mode="after")
+    def validate_chunk_settings(self) -> "Settings":
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
+        return self
 
 
 @lru_cache

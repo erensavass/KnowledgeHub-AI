@@ -2,7 +2,19 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, String, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.base import Base
@@ -28,6 +40,13 @@ class DocumentStatus(StrEnum):
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"
+
+
+class EmbeddingStatus(StrEnum):
+    PENDING = "pending"
+    EMBEDDING = "embedding"
+    EMBEDDED = "embedded"
+    EMBEDDING_FAILED = "embedding_failed"
 
 
 class Document(Base):
@@ -58,3 +77,58 @@ class Document(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     user: Mapped[User] = relationship(back_populates="documents")
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    processing_error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    embedding_status: Mapped[EmbeddingStatus] = mapped_column(
+        Enum(
+            EmbeddingStatus,
+            name="embedding_status",
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=EmbeddingStatus.PENDING,
+        nullable=False,
+    )
+    embedding_error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    chunks: Mapped[list["DocumentChunk"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+    __table_args__ = (UniqueConstraint("document_id", "chunk_index"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    character_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    document: Mapped[Document] = relationship(back_populates="chunks")
+    embedding: Mapped["ChunkEmbedding | None"] = relationship(
+        back_populates="chunk", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class ChunkEmbedding(Base):
+    """Metadata only. Vector values intentionally live outside PostgreSQL."""
+
+    __tablename__ = "chunk_embeddings"
+
+    chunk_id: Mapped[UUID] = mapped_column(
+        ForeignKey("document_chunks.id", ondelete="CASCADE"), primary_key=True
+    )
+    embedding_dimension: Mapped[int] = mapped_column(Integer, nullable=False)
+    model_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    chunk: Mapped[DocumentChunk] = relationship(back_populates="embedding")

@@ -6,6 +6,7 @@ from app.api.errors import add_error_handlers
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.dependencies import close_vector_store
 from app.infrastructure.cache.redis import close_redis
 from app.infrastructure.database.session import close_database
 
@@ -17,6 +18,7 @@ async def lifespan(_: FastAPI):
     logger.info("application_started")
     yield
     close_redis()
+    close_vector_store()
     close_database()
     logger.info("application_stopped")
 

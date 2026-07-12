@@ -7,7 +7,7 @@ services:
       APP_NAME: ${APP_NAME:-Enterprise RAG Assistant}
       APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
       APP_DEBUG: ${APP_DEBUG:-false}
-      APP_VERSION: ${APP_VERSION:-0.1.0}
+      APP_VERSION: ${APP_VERSION:-0.3.0}
       APP_HOST: ${APP_HOST:-0.0.0.0}
       APP_PORT: ${APP_PORT:-8000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -18,12 +18,27 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       DOCUMENT_STORAGE_PATH: ${DOCUMENT_STORAGE_PATH:-/data/documents}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+      CHUNK_SIZE: ${CHUNK_SIZE:-1000}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-150}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cpu}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      MILVUS_URI: ${MILVUS_URI:-http://milvus:19530}
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      MILVUS_COLLECTION: ${MILVUS_COLLECTION:-knowledgehub_chunks}
+      MILVUS_METRIC_TYPE: ${MILVUS_METRIC_TYPE:-COSINE}
+      MILVUS_INDEX_TYPE: ${MILVUS_INDEX_TYPE:-HNSW}
+      MILVUS_HNSW_M: ${MILVUS_HNSW_M:-16}
+      MILVUS_HNSW_EF_CONSTRUCTION: ${MILVUS_HNSW_EF_CONSTRUCTION:-200}
     volumes:
       - document_storage:/data/documents
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      milvus:
         condition: service_healthy
     restart: unless-stopped
     networks: [backend]
@@ -57,6 +72,69 @@ services:
     restart: unless-stopped
     networks: [backend]
 
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: >-
+      etcd --advertise-client-urls=http://127.0.0.1:2379
+      --listen-client-urls=http://0.0.0.0:2379
+      --data-dir=/etcd
+    volumes:
+      - milvus_etcd_data:/etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [backend]
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: minio server /minio_data --console-address ":9001"
+    volumes:
+      - milvus_minio_data:/minio_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [backend]
+
+  milvus:
+    image: milvusdb/milvus:v2.5.27
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend]
+
   nginx:
     build:
       context: .
@@ -72,6 +150,9 @@ volumes:
   postgres_data:
   redis_data:
   document_storage:
+  milvus_etcd_data:
+  milvus_minio_data:
+  milvus_data:
 
 networks:
   backend:
