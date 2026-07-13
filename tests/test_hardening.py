@@ -1,3 +1,4 @@
+from pathlib import Path
 from uuid import uuid4
 
 from redis.exceptions import ConnectionError
@@ -79,3 +80,39 @@ def test_metrics_are_prometheus_compatible(client) -> None:
     response = client.get("/metrics")
     assert response.status_code == 200
     assert "knowledgehub_http_requests_total" in response.text
+
+
+def test_api_image_installs_cpu_only_torch() -> None:
+    dockerfile = Path("Dockerfile").read_text()
+    assert "https://download.pytorch.org/whl/cpu" in dockerfile
+    assert "COPY --from=builder /opt/venv /opt/venv" in dockerfile
+    assert dockerfile.index('"torch==${TORCH_VERSION}"') < dockerfile.index("COPY app ./app")
+
+
+def test_compose_health_and_minio_credentials_are_explicit() -> None:
+    compose = Path("docker-compose.yml").read_text()
+    assert "MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER" in compose
+    assert "MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD" in compose
+    assert 'http://127.0.0.1/healthz' in compose
+    assert "embedding_model_cache:/data/model-cache" in compose
+    assert "HF_HOME: ${HF_HOME:-/data/model-cache}" in compose
+    assert "api-init:" in compose
+    assert 'command: ["chown -R app:app /data/documents /data/model-cache"]' in compose
+    assert "condition: service_completed_successfully" in compose
+
+
+def test_frontend_development_proxy_preserves_edge_api_prefix() -> None:
+    vite_config = Path("frontend/vite.config.ts").read_text()
+    assert "'/api':" in vite_config
+    assert "rewrite:" not in vite_config
+    assert not Path("frontend/vite.config.js").exists()
+    assert not Path("frontend/vite.config.d.ts").exists()
+    assert '"noEmit": true' in Path("frontend/tsconfig.node.json").read_text()
+
+
+def test_production_environment_template_is_trackable() -> None:
+    gitignore = Path(".gitignore").read_text()
+    assert "!.env.production.example" in gitignore
+    template = Path(".env.production.example").read_text()
+    assert "APP_VERSION=1.0.0" in template
+    assert "SECRET_KEY=generate-with-openssl-rand-hex-32" in template

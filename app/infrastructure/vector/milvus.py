@@ -134,7 +134,10 @@ class MilvusVectorStore:
             params=index_params,
         )
         client.create_collection(
-            collection_name=self.collection, schema=schema, index_params=indexes
+            collection_name=self.collection,
+            schema=schema,
+            index_params=indexes,
+            consistency_level="Strong",
         )
 
     def upsert_embeddings(self, embeddings: list[VectorEmbedding]) -> None:

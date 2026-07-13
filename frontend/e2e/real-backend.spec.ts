@@ -19,6 +19,7 @@ test('real backend document and grounded conversation flow', async ({ page }) =>
   await page.getByRole('button', { name: 'Process' }).click()
   await expect(page.getByRole('button', { name: 'Embed' })).toBeEnabled()
   await page.getByRole('button', { name: 'Embed' }).click()
+  await expect(page.getByRole('button', { name: 'Re-embed' })).toBeEnabled({ timeout: 5 * 60 * 1000 })
   await page.getByRole('button', { name: /New conversation/ }).click()
   await page.getByLabel('Ask a question').fill('How does authentication work?')
   await page.getByRole('button', { name: 'Send' }).click()

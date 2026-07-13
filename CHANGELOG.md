@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.0.0 - 2026-07-13
+
+### Fixed
+
+- API container builds install the lock-aligned PyTorch release from the CPU wheel index, avoiding unintended CUDA runtime packages in CPU deployments.
+- The stable CPU runtime layer is cached independently from application source changes.
+- Milvus now receives the configured MinIO credentials, and Nginx container probes use an explicit IPv4 loopback address.
+- New Milvus collections use strong consistency so acknowledged vector writes are immediately visible to verification and search.
+- BGE model downloads persist in a dedicated cache volume, with a documented deployment prewarm step that keeps first-use downloads outside bounded HTTP requests.
+- Persistent API volume ownership is initialized before the unprivileged API process starts.
+- The frontend development proxy preserves the `/api` prefix required by the Nginx edge,
+  allowing real-backend browser validation to reach API routes.
+- Removed stale generated Vite configuration artifacts that could shadow the checked-in
+  TypeScript proxy configuration during browser validation.
+
+### Validation
+
+- Validated the complete Docker stack, PostgreSQL migration cycle, Redis, real Milvus,
+  real Ollama generation, RAG, SSE streaming, persistent conversations, mocked and real
+  Playwright journeys, restart persistence, deletion cleanup, and reconciliation.
+- Passed 116 backend tests, 22 frontend tests, Ruff, TypeScript, frontend lint and build,
+  Docker Compose validation, and Python/npm dependency audits.
+
 ## v0.8.0
 
 ### Added

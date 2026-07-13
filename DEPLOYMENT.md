@@ -6,6 +6,16 @@ Put a TLS-capable load balancer or reverse proxy in front of edge Nginx. Forward
 
 Start with `docker compose up -d --build`, pull the configured Ollama model, then check `/live`, `/ready`, `/metrics`, container health, logs, and the browser flow. The API waits for storage dependencies and runs Alembic migrations before serving. Health checks, restart policies, persistent named volumes, proxy timeouts, upload limits, gzip, SSE buffering controls, and an API resource ceiling are included. Tune CPU/memory for the embedding model and Ollama based on measured load; 16 GB host RAM is a practical starting point.
 
+The reference API image installs its lock-aligned PyTorch release from PyTorch's CPU wheel index. GPU deployments must deliberately provide and validate a separate compatible image rather than inheriting CUDA packages through dependency resolution.
+
+Embedding model files persist in the `embedding_model_cache` volume. Prewarm the configured model after the first deployment, or after intentionally changing `EMBEDDING_MODEL`, before admitting user traffic:
+
+```sh
+docker compose exec api python -c "from app.dependencies import get_embedding_service; get_embedding_service().embed(['readiness warmup'])"
+```
+
+The prewarm avoids placing a multi-gigabyte first-time model transfer inside a bounded HTTP request. Backing up this cache is optional because it can be reconstructed from the configured model source.
+
 Deployment order is PostgreSQL/Redis/etcd/MinIO, Milvus/Ollama, API migration and API, frontend, then edge Nginx. A failed `/ready` response identifies only dependency names and availability, not credentials or exception details. Keep `/live` for process restarts and `/ready` for traffic admission.
 
 ## Release checklist

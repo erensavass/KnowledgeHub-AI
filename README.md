@@ -2,9 +2,9 @@
 
 An enterprise-ready Retrieval-Augmented Generation platform with a production React interface over the secure document, search, and conversation APIs.
 
-## v0.8.0
+## v1.0.0
 
-Sprint 11 hardens the release candidate with Redis-backed per-IP and per-user rate limits, request correlation and latency logs, dependency readiness and process liveness, Prometheus-compatible counters, strict host/CORS and security headers, production configuration, query-driven database indexes, frontend crash recovery, and operations/security/deployment documentation. The fallback version is used because the required real Docker full-stack validation could not run while the Docker daemon was unavailable; this release is not represented as v1.0.0.
+KnowledgeHub AI 1.0 is the stable release of the secure, owner-scoped document retrieval and grounded conversation platform. The complete Docker stack, PostgreSQL migrations, Redis, Milvus persistence, local Ollama generation, incremental SSE streaming, browser journey, cleanup/reconciliation, security controls, and dependency audits have been validated against the real stack.
 
 ## v0.7.0
 
@@ -103,7 +103,7 @@ Sprint 5 added lazy, CPU-compatible chunk embedding generation with PostgreSQL m
    # {"status":"ok"}
 
    curl http://localhost:8000/version
-   # {"name":"KnowledgeHub AI","version":"0.8.0"}
+   # {"name":"KnowledgeHub AI","version":"1.0.0"}
    ```
 
 4. Register, log in, and access protected endpoints:

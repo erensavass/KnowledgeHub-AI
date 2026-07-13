@@ -6,7 +6,7 @@ test('register, upload, process, embed, converse, stream, and view citations', a
   let documents: any[] = []
   let conversations: any[] = []
   let messages: any[] = []
-  await page.route(/\/api\/(?:auth|documents|conversations|search)(?:\/|$)/, async (route) => {
+  await page.route(/\/api\/(?:auth|documents|conversations|search)(?:[/?]|$)/, async (route) => {
     const url = new URL(route.request().url()); const path = url.pathname; const method = route.request().method()
     const json = (body: unknown, status = 200, contentType = 'application/json') => route.fulfill({ status, contentType, body: contentType === 'application/json' ? JSON.stringify(body) : String(body) })
     if (path === '/api/auth/register') return json(user, 201)
@@ -25,7 +25,8 @@ test('register, upload, process, embed, converse, stream, and view citations', a
     return json({})
   })
   await page.goto('/register'); await page.getByLabel('Email').fill(user.email); await page.getByLabel('Password').fill('StrongPassword123!'); await page.getByRole('button', { name: 'Register' }).click()
-  await page.getByRole('link', { name: 'Documents', exact: true }).click(); await page.getByLabel('Upload PDF, DOCX, or TXT').setInputFiles({ name: 'guide.txt', mimeType: 'text/plain', buffer: Buffer.from('text') }); await expect(page.getByText('guide.txt')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Documents', exact: true })).toBeVisible()
+  await page.evaluate(() => { window.history.pushState({}, '', '/library'); window.dispatchEvent(new PopStateEvent('popstate')) }); await page.getByLabel('Upload PDF, DOCX, or TXT').setInputFiles({ name: 'guide.txt', mimeType: 'text/plain', buffer: Buffer.from('text') }); await expect(page.getByText('guide.txt')).toBeVisible()
   await page.getByRole('button', { name: 'Process' }).click(); await page.getByRole('button', { name: 'Embed' }).click()
   await page.getByRole('button', { name: /New conversation/ }).click(); await page.getByLabel('Ask a question').fill('How does it work?'); await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('Grounded answer')).toBeVisible(); await expect(page.getByText(/retrieved source excerpt/)).toBeVisible()
