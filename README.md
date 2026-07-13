@@ -274,14 +274,6 @@ The normal Playwright journey mocks backend responses. Running against a real ba
 RUN_REAL_BACKEND_E2E=1 npm run test:e2e
 ```
 
-## Screenshots
-
-Screenshots will be added after the first deployed UI review:
-
-- Desktop conversation workspace — _placeholder_
-- Mobile document workflow — _placeholder_
-- Semantic search and citation panel — _placeholder_
-
 The normal suite uses an in-memory vector-store fake. Run the opt-in real Milvus lifecycle test only after the Compose Milvus service is healthy:
 
 ```sh
